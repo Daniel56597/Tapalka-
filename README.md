@@ -1,1 +1,523 @@
-Кликер
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Кликер — оффлайн (с админкой, рынком, инвентарём)</title>
+<style>
+:root{
+  --bg:#071223; --card:#0b1522; --accent:#3b82f6; --muted:#9bb0c8; --glass: rgba(255,255,255,0.03);
+}
+*{box-sizing:border-box}
+body{margin:0;font-family:Inter,Segoe UI,Arial;background:linear-gradient(180deg,#05111a 0%,#071827 100%);color:#eaf6ff}
+.wrap{max-width:980px;margin:20px auto;padding:18px}
+header{display:flex;justify-content:space-between;align-items:center;gap:10px}
+h1{margin:0;font-size:20px}
+.card{background:var(--card);padding:14px;border-radius:12px;box-shadow:0 6px 18px rgba(2,6,23,0.6)}
+#game{display:flex;gap:18px;align-items:center;margin-top:16px}
+#clickBox{width:220px;height:220px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:48px;cursor:pointer;background:linear-gradient(135deg,#0b1220,#082134);border:1px solid rgba(255,255,255,0.03)}
+.stats{min-width:260px}
+.big{font-size:40px;font-weight:700;margin:8px 0}
+.muted{color:var(--muted);font-size:13px}
+button{background:var(--accent);border:0;padding:8px 12px;border-radius:10px;color:#022;cursor:pointer}
+.input{padding:8px;border-radius:8px;border:1px solid rgba(255,255,255,0.04);background:transparent;color:inherit}
+.row{display:flex;gap:10px;align-items:center}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:14px}
+.market-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-top:10px}
+.market-item{background:var(--glass);padding:10px;border-radius:10px;text-align:left}
+.inventory-list{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.inv-item{background:rgba(255,255,255,0.02);padding:6px 8px;border-radius:8px;display:flex;gap:8px;align-items:center}
+.admin-panel{margin-top:12px;padding:10px;background:#071424;border-radius:10px}
+.leaderboard table{width:100%;border-collapse:collapse;margin-top:8px}
+.leaderboard th, .leaderboard td{padding:6px;text-align:left;border-bottom:1px solid rgba(255,255,255,0.03)}
+.small{padding:6px 8px;font-size:13px;border-radius:8px}
+.footer{margin-top:14px;color:var(--muted);font-size:13px}
+@media (max-width:820px){#game{flex-direction:column}#clickBox{width:180px;height:180px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Кликер</h1>
+    <div class="row">
+      <div id="userInfo" class="muted">Не вошли</div>
+      <button id="btnAuth" class="small">Войти / Регистрация</button>
+      <button id="btnAdmin" class="small">Админ</button>
+    </div>
+  </header>
+
+  <section class="card" id="mainCard">
+    <div id="game">
+      <div id="clickBox" title="Кликни!">🖱️</div>
+      <div class="stats">
+        <div class="muted">Клики</div>
+        <div id="count" class="big">0</div>
+        <div class="muted">Профиль: <span id="profileName">Гость</span> <span id="checkmark"></span> <span id="equipped"></span></div>
+        <div style="margin-top:10px" class="row">
+          <button id="btnAdd10" class="small">+10</button>
+          <button id="btnReset" class="small">Сброс</button>
+          <button id="btnSave" class="small">Сохранить</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="grid2">
+      <div class="card">
+        <strong>Рынок</strong>
+        <div id="market" class="market-grid"></div>
+      </div>
+
+      <div class="card">
+        <strong>Инвентарь</strong>
+        <div id="inventory" class="inventory-list"><span class="muted">Пусто</span></div>
+        <div style="margin-top:8px" class="row">
+          <button id="btnUnequip" class="small">Снять медаль</button>
+          <button id="btnExport" class="small">Экспорт профиля</button>
+          <button id="btnImport" class="small">Импорт профиля</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="grid2" style="margin-top:12px">
+      <div class="card leaderboard">
+        <strong>Таблица лидеров (локально)</strong>
+        <div id="leadersWrap"><table><thead><tr><th>#</th><th>Имя</th><th>Клики</th></tr></thead><tbody id="leadersBody"></tbody></table></div>
+      </div>
+
+      <div class="card">
+        <strong>Информация</strong>
+        <div class="muted" style="margin-top:8px">
+          Игра хранится локально в браузере (localStorage). Админ-панель позволяет выдать/забрать галочку, добавить клики и выдать/забрать медали у конкретного пользователя.
+        </div>
+      </div>
+    </div>
+
+    <div id="adminPanel" class="admin-panel" style="display:none;">
+      <strong>Админ-панель</strong>
+      <div style="margin-top:8px" class="row">
+        <select id="adminUserSelect" class="input"></select>
+        <input id="adminAmount" class="input" placeholder="Клики (напр. 100)" style="width:120px"/>
+        <button id="adminAddClicks" class="small">Добавить клики</button>
+      </div>
+
+      <div style="margin-top:8px" class="row">
+        <select id="adminMedalSelect" class="input"></select>
+        <button id="adminGiveMedal" class="small">Выдать медаль</button>
+        <button id="adminRemoveMedal" class="small">Забрать медаль</button>
+      </div>
+
+      <div style="margin-top:8px" class="row">
+        <button id="adminGiveCheck" class="small">Выдать галочку</button>
+        <button id="adminRemoveCheck" class="small">Забрать галочку</button>
+        <button id="adminClose" class="small">Закрыть</button>
+      </div>
+    </div>
+
+    <div id="authPanel" class="admin-panel" style="display:none;">
+      <strong>Вход / Регистрация</strong>
+      <div style="margin-top:8px" class="col">
+        <input id="inpLogin" class="input" placeholder="Логин"/>
+        <input id="inpPass" type="password" class="input" placeholder="Пароль"/>
+        <div style="margin-top:8px" class="row">
+          <button id="doRegister" class="small">Зарегистрироваться</button>
+          <button id="doLogin" class="small">Войти</button>
+          <button id="closeAuth" class="small">Закрыть</button>
+        </div>
+        <div id="authMsg" class="muted" style="margin-top:8px"></div>
+      </div>
+    </div>
+
+    <div class="footer">Пороговые иконки: каждые 100 кликов меняется иконка (0..1000). Хранилище: localStorage.</div>
+  </section>
+</div>
+
+<script>
+/* ================== НАСТРОЙКИ ================== */
+// Пароль для админ-панели (меняй прямо здесь)
+const ADMIN_PASSWORD = "per82sik";
+
+(function removeAdminUserOnce(){
+  let users = JSON.parse(localStorage.getItem('clicker_users_v2') || '[]');
+  const hadAdmin = users.some(u => u.login === 'admin');
+  if(hadAdmin){
+    users = users.filter(u => u.login !== 'admin');
+    localStorage.setItem('clicker_users_v2', JSON.stringify(users));
+    alert('Аккаунт admin удалён');
+  }
+})();
+
+
+// Медали: 10 штук (можешь менять цены, эмодзи, названия)
+const MEDALS = [
+  {name:"Бронза", price:20, emoji:"🥉"},
+  {name:"Серебро", price:40, emoji:"🥈"},
+  {name:"Золото", price:60, emoji:"🥇"},
+  {name:"Платина", price:80, emoji:"🏅"},
+  {name:"Алмаз", price:100, emoji:"💎"},
+  {name:"Рубин", price:120, emoji:"❤️"},
+  {name:"Изумруд", price:140, emoji:"💚"},
+  {name:"Сапфир", price:160, emoji:"💙"},
+  {name:"Легенда", price:180, emoji:"🏆"},
+  {name:"Легенда 2", price:250, emoji:"🏆"}
+];
+
+// localStorage ключи
+const LS_USERS = "clicker_users_v2";
+const LS_SESSION = "clicker_session_v2";
+
+/* ================== УТИЛИТЫ ================== */
+function loadUsers(){ try{ return JSON.parse(localStorage.getItem(LS_USERS)||"[]") }catch(e){return []} }
+function saveUsers(u){ localStorage.setItem(LS_USERS, JSON.stringify(u)) }
+function saveSession(login){ localStorage.setItem(LS_SESSION, JSON.stringify({login})) }
+function loadSession(){ try{ return JSON.parse(localStorage.getItem(LS_SESSION)||"null") }catch(e){return null} }
+function findUser(login){ return loadUsers().find(u=>u.login===login) }
+function updateUser(updated){ const users=loadUsers(); const idx=users.findIndex(u=>u.login===updated.login); if(idx>=0) users[idx]=updated; else users.push(updated); saveUsers(users) }
+
+/* Простая "соль" для пароля — мы используем btoa, это не безопасно, но достаточно для локального хранения */
+function encodePass(p){ try{return btoa(p)}catch(e){return p} }
+function decodePass(h){ try{return atob(h)}catch(e){return h} }
+
+/* ================== ИНИЦИАЛИЗАЦИЯ (если пусто, добавим демо-пользователя) ================== */
+
+
+/* ================== ЭЛЕМЕНТЫ ================== */
+const clickBox = document.getElementById("clickBox");
+const countEl = document.getElementById("count");
+const profileNameEl = document.getElementById("profileName");
+const checkmarkEl = document.getElementById("checkmark");
+const equippedEl = document.getElementById("equipped");
+const userInfoEl = document.getElementById("userInfo");
+
+const marketEl = document.getElementById("market");
+const inventoryEl = document.getElementById("inventory");
+const leadersBody = document.getElementById("leadersBody");
+
+const btnAuth = document.getElementById("btnAuth");
+const authPanel = document.getElementById("authPanel");
+const inpLogin = document.getElementById("inpLogin");
+const inpPass = document.getElementById("inpPass");
+const doRegisterBtn = document.getElementById("doRegister");
+const doLoginBtn = document.getElementById("doLogin");
+const closeAuthBtn = document.getElementById("closeAuth");
+const authMsg = document.getElementById("authMsg");
+
+const btnAdmin = document.getElementById("btnAdmin");
+const adminPanel = document.getElementById("adminPanel");
+const adminClose = document.getElementById("adminClose");
+const adminUserSelect = document.getElementById("adminUserSelect");
+const adminMedalSelect = document.getElementById("adminMedalSelect");
+const adminAddClicksBtn = document.getElementById("adminAddClicks");
+const adminAmount = document.getElementById("adminAmount");
+const adminGiveMedalBtn = document.getElementById("adminGiveMedal");
+const adminRemoveMedalBtn = document.getElementById("adminRemoveMedal");
+const adminGiveCheckBtn = document.getElementById("adminGiveCheck");
+const adminRemoveCheckBtn = document.getElementById("adminRemoveCheck");
+
+const btnAdd10 = document.getElementById("btnAdd10");
+const btnReset = document.getElementById("btnReset");
+const btnSave = document.getElementById("btnSave");
+const btnUnequip = document.getElementById("btnUnequip");
+const btnExport = document.getElementById("btnExport");
+const btnImport = document.getElementById("btnImport");
+
+/* ================== СЕССИЯ ================== */
+let currentUser = null; // объект пользователя когда вошли
+
+function setCurrentUserByLogin(login){
+  if(!login){ currentUser=null; saveSession(null); renderAll(); return; }
+  const user = findUser(login);
+  if(user){ currentUser = user; saveSession(login); } else { currentUser = null; }
+  renderAll();
+}
+
+/* при загрузке — подгрузим сессии если есть */
+(function restoreSession(){
+  const s = loadSession();
+  if(s && s.login) setCurrentUserByLogin(s.login);
+  else setCurrentUserByLogin(null);
+})();
+
+/* ================== ИКОНКИ ПО УРОВНЮ ================== */
+function makeIconForClicks(c){
+  const stage = Math.min(9, Math.floor(c/100));
+  // простая палитра + label
+  const labels = ["0","100","200","300","400","500","600","700","800","900","1000+"];
+  const colors = ["#0ea5a4","#3b82f6","#f97316","#e11d48","#8b5cf6","#06b6d4","#f59e0b","#10b981","#ef4444","#0ea5a4"];
+  const bg = colors[stage%colors.length];
+  // используем emoji + число
+  return `<div style="width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;color:white;">
+    <div style="font-size:48px">${stage<MEDALS.length?MEDALS[stage].emoji:"🖱️"}</div>
+    <div style="font-size:18px;margin-top:6px">${labels[stage]}</div>
+  </div>`;
+}
+
+/* ================== РЕНДЕР ================== */
+function renderMarket(){
+  marketEl.innerHTML = "";
+  MEDALS.forEach(m=>{
+    const div = document.createElement("div");
+    div.className = "market-item";
+    div.innerHTML = `<div style="font-size:20px">${m.emoji} <strong>${m.name}</strong></div>
+      <div class="muted" style="margin-top:6px">${m.price} кликов</div>
+      <div style="margin-top:8px"><button class="small" data-buy="${m.name}">Купить</button></div>`;
+    marketEl.appendChild(div);
+  });
+  // делегирование
+  marketEl.querySelectorAll("button[data-buy]").forEach(b=>{
+    b.onclick = ()=> buyMedal(b.getAttribute("data-buy"));
+  });
+}
+
+function renderInventory(){
+  inventoryEl.innerHTML = "";
+  if(!currentUser){ inventoryEl.innerHTML = `<span class="muted">Войдите чтобы видеть инвентарь</span>`; return; }
+  if(!currentUser.inventory || currentUser.inventory.length===0){
+    inventoryEl.innerHTML = `<span class="muted">Пусто</span>`; return;
+  }
+  currentUser.inventory.forEach((medal, idx)=>{
+    const m = MEDALS.find(x=>x.name===medal) || {name:medal,emoji:"🎖️"};
+    const item = document.createElement("div");
+    item.className = "inv-item";
+    item.innerHTML = `<span style="font-size:18px">${m.emoji}</span><div style="min-width:90px">${m.name}</div>
+      <div style="display:flex;gap:6px">
+        <button class="small" data-equip="${idx}">${currentUser.equippedMedal===m.name?"Надето":"Надеть"}</button>
+        <button class="small" data-remove="${idx}">Удалить</button>
+      </div>`;
+    inventoryEl.appendChild(item);
+  });
+  // handlers
+  inventoryEl.querySelectorAll("button[data-equip]").forEach(b=>{
+    b.onclick = ()=> {
+      const i = Number(b.getAttribute("data-equip"));
+      const medal = currentUser.inventory[i];
+      if(currentUser.equippedMedal === medal) { currentUser.equippedMedal = null; } else { currentUser.equippedMedal = medal; }
+      updateUser(currentUser); setCurrentUserByLogin(currentUser.login);
+    };
+  });
+  inventoryEl.querySelectorAll("button[data-remove]").forEach(b=>{
+    b.onclick = ()=> {
+      const i = Number(b.getAttribute("data-remove"));
+      const medal = currentUser.inventory.splice(i,1)[0];
+      if(currentUser.equippedMedal === medal) currentUser.equippedMedal = null;
+      updateUser(currentUser); setCurrentUserByLogin(currentUser.login);
+    };
+  });
+}
+
+function renderProfile(){
+  profileNameEl.textContent = currentUser ? currentUser.login : "Гость";
+  userInfoEl.textContent = currentUser ? `${currentUser.login}` : "Не вошли";
+  countEl.textContent = currentUser ? currentUser.clicks : 0;
+  checkmarkEl.textContent = (currentUser && currentUser.hasCheck) ? "✔️" : "";
+  equippedEl.textContent = (currentUser && currentUser.equippedMedal) ? (MEDALS.find(m=>m.name===currentUser.equippedMedal)?.emoji || "🎖️") : "";
+  // icon
+  clickBox.innerHTML = makeIconForClicks(currentUser ? currentUser.clicks : 0);
+}
+
+function renderLeaders(){
+  const users = loadUsers().slice().sort((a,b)=> (b.clicks||0) - (a.clicks||0)).slice(0,20);
+  leadersBody.innerHTML = "";
+  users.forEach((u,i)=>{
+    const tr = document.createElement("tr");
+    tr.innerHTML = `<td>${i+1}</td><td>${escapeHtml(u.login)} ${u.hasCheck? "✔️":""} ${u.equippedMedal? (MEDALS.find(m=>m.name===u.equippedMedal)?.emoji||"🎖️") : ""}</td><td>${u.clicks||0}</td>`;
+    leadersBody.appendChild(tr);
+  });
+}
+
+function escapeHtml(s){ return String(s).replace(/[&<>\"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+/* обновить список пользователей в админке */
+function populateAdminUserSelect(){
+  const users = loadUsers();
+  adminUserSelect.innerHTML = "";
+  users.forEach(u=>{
+    const opt = document.createElement("option");
+    opt.value = u.login; opt.textContent = `${u.login} (${u.clicks||0})`;
+    adminUserSelect.appendChild(opt);
+  });
+  adminMedalSelect.innerHTML = "";
+  MEDALS.forEach(m=>{
+    const opt = document.createElement("option");
+    opt.value = m.name; opt.textContent = `${m.emoji} ${m.name}`;
+    adminMedalSelect.appendChild(opt);
+  });
+}
+
+/* общий render */
+function renderAll(){
+  renderMarket();
+  renderProfile();
+  renderInventory();
+  renderLeaders();
+  populateAdminUserSelect();
+}
+
+/* ================== ДЕЙСТВИЯ ПОЛЬЗОВАТЕЛЯ ================== */
+clickBox.onclick = ()=>{
+  if(!currentUser){ alert("Войдите, чтобы кликать и сохранять прогресс."); return; }
+  currentUser.clicks = (currentUser.clicks||0) + 1;
+  updateUser(currentUser);
+  setCurrentUserByLogin(currentUser.login);
+};
+
+btnAdd10.onclick = ()=>{
+  if(!currentUser){ alert("Войдите."); return; }
+  currentUser.clicks = (currentUser.clicks||0) + 10;
+  updateUser(currentUser); setCurrentUserByLogin(currentUser.login);
+};
+btnReset.onclick = ()=>{
+  if(!currentUser){ alert("Войдите."); return; }
+  if(confirm("Сбросить клики в ноль?")){ currentUser.clicks = 0; updateUser(currentUser); setCurrentUserByLogin(currentUser.login); }
+};
+btnSave.onclick = ()=>{
+  if(!currentUser){ alert("Войдите."); return; }
+  updateUser(currentUser); alert("Сохранено в localStorage.");
+};
+btnUnequip.onclick = ()=>{
+  if(!currentUser){ alert("Войдите."); return; }
+  currentUser.equippedMedal = null; updateUser(currentUser); setCurrentUserByLogin(currentUser.login);
+};
+
+/* экспорт/импорт профиля (JSON) */
+btnExport.onclick = ()=>{
+  if(!currentUser){ alert("Войдите."); return; }
+  const data = JSON.stringify(currentUser);
+  navigator.clipboard?.writeText(data).then(()=> alert("Профиль скопирован в буфер обмена (JSON)."), ()=> alert("Скопируйте вручную:\n"+data));
+};
+btnImport.onclick = ()=>{
+  const data = prompt("Вставьте JSON профиля для импорта:");
+  if(!data) return;
+  try{
+    const obj = JSON.parse(data);
+    if(!obj.login) throw new Error("Неверный формат");
+    obj.pass = obj.pass || encodePass(prompt("Введите пароль для импортированного аккаунта (пароль сохранится в том виде, который вы введёте):") || "");
+    updateUser(obj);
+    alert("Импорт завершён. Теперь вы можете войти под этим логином.");
+    populateAdminUserSelect(); renderLeaders();
+  }catch(e){ alert("Ошибка импорта: "+e.message); }
+};
+
+/* ================== РЫНОК ================== */
+function buyMedal(name){
+  if(!currentUser){ alert("Войдите чтобы покупать."); return; }
+  const item = MEDALS.find(m=>m.name===name);
+  if(!item) return;
+  if((currentUser.clicks||0) < item.price){ alert("Недостаточно кликов."); return; }
+  currentUser.clicks -= item.price;
+  currentUser.inventory = currentUser.inventory || [];
+  currentUser.inventory.push(item.name);
+  updateUser(currentUser); setCurrentUserByLogin(currentUser.login);
+  alert(`Куплено: ${item.name}`);
+}
+
+/* ================== АУТЕНТИФИКАЦИЯ (ЛОКАЛЬНАЯ) ================== */
+btnAuth.onclick = ()=> { authPanel.style.display = (authPanel.style.display==="none" || authPanel.style.display==="") ? "block" : "none"; authMsg.textContent=""; };
+closeAuthBtn.onclick = ()=> authPanel.style.display = "none";
+
+doRegisterBtn.onclick = ()=>{
+  const login = inpLogin.value.trim();
+  const pass = inpPass.value;
+  if(!login || !pass){ authMsg.textContent = "Введите логин и пароль."; return; }
+  const users = loadUsers();
+  if(users.find(u=>u.login===login)){ authMsg.textContent = "Пользователь уже существует."; return; }
+  const user = { login, pass: encodePass(pass), clicks:0, inventory:[], equippedMedal:null, hasCheck:false };
+  users.push(user); saveUsers(users);
+  authMsg.textContent = "Создано. Войдите.";
+  inpPass.value = "";
+};
+
+doLoginBtn.onclick = ()=>{
+  const login = inpLogin.value.trim();
+  const pass = inpPass.value;
+  if(!login || !pass){ authMsg.textContent = "Введите логин и пароль."; return; }
+  const user = findUser(login);
+  if(!user){ authMsg.textContent = "Пользователь не найден."; return; }
+  if(decodePass(user.pass) !== pass){ authMsg.textContent = "Неверный пароль."; return; }
+  setCurrentUserByLogin(login);
+  authPanel.style.display = "none";
+  inpLogin.value = ""; inpPass.value = "";
+  authMsg.textContent = "";
+};
+
+/* ================== АДМИН-ПАНЕЛЬ (локально) ================== */
+btnAdmin.onclick = ()=>{
+  const pass = prompt("Введите пароль админа:");
+  if(pass !== ADMIN_PASSWORD){ alert("Неверный пароль админа."); return; }
+  adminPanel.style.display = "block";
+  populateAdminUserSelect();
+};
+adminClose.onclick = ()=> adminPanel.style.display = "none";
+
+adminAddClicksBtn.onclick = ()=>{
+  const target = adminUserSelect.value;
+  const amount = Number(adminAmount.value) || 0;
+  if(!target){ alert("Выберите пользователя"); return; }
+  const user = findUser(target);
+  if(!user) return;
+  user.clicks = (user.clicks||0) + amount;
+  updateUser(user); populateAdminUserSelect(); renderAll();
+  alert(`Добавлено ${amount} кликов пользователю ${target}`);
+  adminAmount.value = "";
+};
+
+adminGiveMedalBtn.onclick = ()=>{
+  const target = adminUserSelect.value; const medal = adminMedalSelect.value;
+  if(!target){ alert("Выберите пользователя"); return; }
+  const user = findUser(target);
+  if(!user) return;
+  user.inventory = user.inventory || [];
+  user.inventory.push(medal);
+  updateUser(user); renderAll(); alert(`Выдана медаль ${medal} пользователю ${target}`);
+};
+
+adminRemoveMedalBtn.onclick = ()=>{
+  const target = adminUserSelect.value; const medal = adminMedalSelect.value;
+  if(!target){ alert("Выберите пользователя"); return; }
+  const user = findUser(target);
+  if(!user) return;
+  const i = (user.inventory||[]).indexOf(medal);
+  if(i>=0) user.inventory.splice(i,1);
+  if(user.equippedMedal === medal) user.equippedMedal = null;
+  updateUser(user); renderAll(); alert(`Забрана медаль ${medal} у ${target}`);
+};
+
+adminGiveCheckBtn.onclick = ()=>{
+  const target = adminUserSelect.value; if(!target){ alert("Выберите"); return; }
+  const user = findUser(target); if(!user) return;
+  user.hasCheck = true; updateUser(user); renderAll(); alert(`Галочка выдана ${target}`);
+};
+adminRemoveCheckBtn.onclick = ()=>{
+  const target = adminUserSelect.value; if(!target){ alert("Выберите"); return; }
+  const user = findUser(target); if(!user) return;
+  user.hasCheck = false; updateUser(user); renderAll(); alert(`Галочка снята у ${target}`);
+};
+
+/* ================== HELPERS ================== */
+function updateUser(u){
+  updateUserInternal(u);
+  saveUsers(loadUsers()); // ensure persisted
+}
+function updateUserInternal(u){
+  const users = loadUsers();
+  const idx = users.findIndex(x=>x.login===u.login);
+  if(idx>=0) users[idx] = u; else users.push(u);
+  saveUsers(users);
+}
+
+/* ================== START ================== */
+renderAll();
+
+/* Обновляем UI периодически, чтобы отразить изменения */
+setInterval(()=>{ 
+  // если есть сессия, ре-зарядим текущего из хранилища (нужно, если admin изменил)
+  const s = loadSession();
+  if(s && s.login){
+    const fresh = findUser(s.login);
+    if(fresh) currentUser = fresh;
+  }
+  renderAll();
+}, 800);
+
+</script>
+</body>
+</html>
